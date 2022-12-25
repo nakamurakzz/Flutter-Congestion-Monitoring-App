@@ -1,47 +1,109 @@
+import 'dart:io';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 
-void main() {
-  runApp(const MyApp());
+late List<CameraDescription> _cameras;
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  _cameras = await availableCameras();
+  runApp(const CameraApp());
 }
 
-class MyApp extends HookWidget {
-  const MyApp({super.key});
+/// CameraApp is the Main Application.
+class CameraApp extends StatefulWidget {
+  /// Default Constructor
+  const CameraApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'Flutter Demo',
-      home: HomePage(title: 'Flutter Demo Home Page'),
-    );
+  State<CameraApp> createState() => _CameraAppState();
+}
+
+class _CameraAppState extends State<CameraApp> {
+  late CameraController controller;
+  String _imagePath = 'No Image';
+
+  @override
+  void initState() {
+    super.initState();
+    controller = CameraController(_cameras[0], ResolutionPreset.max);
+    controller.initialize().then((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {});
+    }).catchError((Object e) {
+      if (e is CameraException) {
+        switch (e.code) {
+          case 'CameraAccessDenied':
+            // Handle access errors here.
+            break;
+          default:
+            // Handle other errors here.
+            break;
+        }
+      }
+    });
   }
-}
 
-class HomePage extends HookWidget {
-  final String title;
-  const HomePage({super.key, required this.title});
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
+    if (!controller.value.isInitialized) {
+      return Container();
+    }
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Camera Preview'),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: Center(
+              child: Column(children: [
             Text(
-              'test',
-              style: Theme.of(context).textTheme.headline4,
+              'Camera Preview',
+              style: Theme.of(context).textTheme.headline5,
             ),
-          ],
+            Container(
+              height: 300,
+              width: 300,
+              child: CameraPreview(controller),
+            ),
+            IconButton(
+              onPressed: takePicture,
+              icon: const Icon(Icons.camera_alt_outlined),
+            ),
+            // _imagePathの画像を表示する
+            _imagePath != 'No Image'
+                ? Image.file(
+                    File(_imagePath),
+                    width: 300,
+                    height: 300,
+                  )
+                : Container(),
+          ])),
         ),
       ),
     );
+  }
+
+  void takePicture() async {
+    try {
+      final path = await controller.takePicture();
+      print(path.path);
+      setState(() {
+        _imagePath = path.path;
+      });
+    } catch (e) {
+      print(e);
+    }
   }
 }
